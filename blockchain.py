@@ -7,6 +7,9 @@ block_chain = [genesis_block]
 open_transaction = []
 owner = "Fabu"
 
+def hash_block(block):
+    return "-".join([str(block[key]) for key in block])
+
 def get_last_blockchain_value():
     if len(block_chain) < 1:
         return None
@@ -37,14 +40,10 @@ def get_transaction_value():
 
 def mine_block():
     last_block = block_chain[-1]
-    hash = ""
-
-    for key in last_block:
-        value = last_block[key]
-        hash_block +=  value + '_' 
-    
+    hashed_block =  hash_block(last_block)
+    print(hash_block)
     block = {
-        "previous_hash": hash_block, 
+        "previous_hash": hashed_block, 
         "index": len(block_chain),
         "transactions": open_transaction
     }
@@ -62,28 +61,23 @@ def print_blockchain_elements():
 
 
 def verify_blockchain():
-    block_index = 0
-    is_valid = True
-
-    for block in block_chain:
-        if type(block[0]) != list:
-            is_valid = False
-            break
-        elif block_index == 0:
-            block_index += 1
+    if len(block_chain) == 1:
+        return True
+    for index, block in enumerate(block_chain):
+        if index == 0:
             continue
-        elif block[0] == block_chain[block_index - 1]:
-            is_valid = True
-            block_index += 1
-        else:
-            is_valid = False
-            break
-    return is_valid
+        if block["previous_hash"] != hash_block(block_chain[index - 1]):
+            return False
+    return True
 
+
+def list_comprehension(*numbers):
+    new_list = [number * 2 for number in numbers]
+    return new_list
 
 while True:
     print("Make a choice")
-    print("1: Add new transacrion value")
+    print("1: Add new transaction value")
     print("2: Mine a new block")
     print("3: Outputting the blockchain blocks")
     print("h: Manipulate the chain")
@@ -101,7 +95,11 @@ while True:
         print_blockchain_elements()
     elif user_choice.lower() == 'h':
         if len(block_chain) >= 1:
-            block_chain[0] = [2]
+            block_chain[0] = {
+                "previous_hash": "",
+                "index": 0,
+                "transactions": [{"sender": "Papy", "recipient": "Max", "amount": 100.0}]
+            }
     elif user_choice.lower() == 'q':
         break
     else:
