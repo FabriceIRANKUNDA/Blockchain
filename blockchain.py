@@ -6,10 +6,24 @@ genesis_block = {
 block_chain = [genesis_block]
 open_transaction = []
 owner = "Fabu"
+participants ={"Fabu"}
 
 def hash_block(block):
     return "-".join([str(block[key]) for key in block])
 
+
+def get_balance(participant):
+    tx_sender = [ [ tx["amount"] for tx in block["transactions"] if tx["sender"] == participant] for block in block_chain]
+    amount_sent = 0
+    for tx in tx_sender:
+        if len(tx) >= 1:
+            amount_sent += tx[0]
+    tx_recipient = [ [ tx["amount"] for tx in block["transactions"] if tx["recipient"] == participant] for block in block_chain]
+    amount_recieved = 0
+    for tx in tx_recipient:
+        if len(tx) >= 1:
+            amount_recieved += tx[0]
+    return amount_recieved - amount_sent
 def get_last_blockchain_value():
     if len(block_chain) < 1:
         return None
@@ -29,6 +43,8 @@ def add_transaction(recipient, sender=owner, amount=1.0):
         "amount": amount
     }
     open_transaction.append(transaction)
+    participants.add(sender)
+    participants.add(recipient)  
 
   
 
@@ -41,13 +57,13 @@ def get_transaction_value():
 def mine_block():
     last_block = block_chain[-1]
     hashed_block =  hash_block(last_block)
-    print(hash_block)
     block = {
         "previous_hash": hashed_block, 
         "index": len(block_chain),
         "transactions": open_transaction
     }
     block_chain.append(block)
+    return True
 
 
 def get_user_choice():
@@ -80,6 +96,7 @@ while True:
     print("1: Add new transaction value")
     print("2: Mine a new block")
     print("3: Outputting the blockchain blocks")
+    print("4: Output participants")
     print("h: Manipulate the chain")
     print("Q ----> Quit")
 
@@ -90,9 +107,12 @@ while True:
         add_transaction(recipient,amount=amount)
         print(open_transaction)
     elif user_choice == "2":
-        mine_block()
+       if mine_block():
+           open_transaction = []
     elif user_choice == "3":
         print_blockchain_elements()
+    elif user_choice == "4":
+        print(f"Participants: {participants}")
     elif user_choice.lower() == 'h':
         if len(block_chain) >= 1:
             block_chain[0] = {
@@ -107,6 +127,7 @@ while True:
     if not verify_blockchain():
         print("Invalid blockchain!")
         break
+    print(get_balance("Fabu"))
         
 
 print("Done!") 
