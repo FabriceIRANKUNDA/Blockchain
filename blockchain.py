@@ -1,10 +1,12 @@
+MINING_REWARD = 10
+
 genesis_block = {
     "previous_hash": "",
      "index": 0,
      "transactions": []
 }
 block_chain = [genesis_block]
-open_transaction = []
+open_transactions = []
 owner = "Fabu"
 participants ={"Fabu"}
 
@@ -14,6 +16,8 @@ def hash_block(block):
 
 def get_balance(participant):
     tx_sender = [ [ tx["amount"] for tx in block["transactions"] if tx["sender"] == participant] for block in block_chain]
+    open_txt_sender =  [txt["amount"] for txt in open_transactions if txt["sender"] == participant]
+    tx_sender.append(open_txt_sender)
     amount_sent = 0
     for tx in tx_sender:
         if len(tx) >= 1:
@@ -28,6 +32,12 @@ def get_last_blockchain_value():
     if len(block_chain) < 1:
         return None
     return block_chain[-1]
+
+
+def verify_transaction(transaction):
+    sender_balance = get_balance(transaction["sender"])
+    return sender_balance > transaction["amount"]
+    
  
 def add_transaction(recipient, sender=owner, amount=1.0):
     """ Append a new tranction
@@ -42,11 +52,14 @@ def add_transaction(recipient, sender=owner, amount=1.0):
         "recipient": recipient,
         "amount": amount
     }
-    open_transaction.append(transaction)
-    participants.add(sender)
-    participants.add(recipient)  
 
-  
+    if verify_transaction(transaction):
+        open_transactions.append(transaction)
+        participants.add(sender)
+        participants.add(recipient) 
+        return True
+    return False
+ 
 
 def get_transaction_value():
     txt_recipient = input("Enter the recipient of the transaction: ")
@@ -57,10 +70,17 @@ def get_transaction_value():
 def mine_block():
     last_block = block_chain[-1]
     hashed_block =  hash_block(last_block)
+    reward_transaction = {
+        "sender":"MINING",
+        "recipient": owner,
+        "amount": MINING_REWARD
+    }
+    copied_transactions = open_transactions
+    copied_transactions.append(reward_transaction)
     block = {
         "previous_hash": hashed_block, 
         "index": len(block_chain),
-        "transactions": open_transaction
+        "transactions": copied_transactions
     }
     block_chain.append(block)
     return True
@@ -87,6 +107,9 @@ def verify_blockchain():
     return True
 
 
+def verify_transactions():
+    return all([verify_transaction(tx) for tx in open_transactions])
+
 def list_comprehension(*numbers):
     new_list = [number * 2 for number in numbers]
     return new_list
@@ -97,6 +120,7 @@ while True:
     print("2: Mine a new block")
     print("3: Outputting the blockchain blocks")
     print("4: Output participants")
+    print("5: Check transactions validity")
     print("h: Manipulate the chain")
     print("Q ----> Quit")
 
@@ -104,15 +128,23 @@ while True:
 
     if user_choice == "1":
         recipient, amount = get_transaction_value()
-        add_transaction(recipient,amount=amount)
-        print(open_transaction)
+        if add_transaction(recipient,amount=amount):
+            print("Transaction added successfuly!")
+        else:
+            print("Transactin failed!")
+        print(open_transactions)
     elif user_choice == "2":
        if mine_block():
-           open_transaction = []
+           open_transactions = []
     elif user_choice == "3":
         print_blockchain_elements()
     elif user_choice == "4":
         print(f"Participants: {participants}")
+    elif user_choice == "5":
+        if verify_transactions():
+            print("All transactions are valid")
+        else:
+            print("There are invalid transanction")
     elif user_choice.lower() == 'h':
         if len(block_chain) >= 1:
             block_chain[0] = {
