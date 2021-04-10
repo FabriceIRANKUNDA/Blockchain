@@ -1,3 +1,4 @@
+import functools
 MINING_REWARD = 10
 
 genesis_block = {
@@ -18,15 +19,11 @@ def get_balance(participant):
     tx_sender = [ [ tx["amount"] for tx in block["transactions"] if tx["sender"] == participant] for block in block_chain]
     open_txt_sender =  [txt["amount"] for txt in open_transactions if txt["sender"] == participant]
     tx_sender.append(open_txt_sender)
-    amount_sent = 0
-    for tx in tx_sender:
-        if len(tx) >= 1:
-            amount_sent += tx[0]
+    amount_sent = functools.reduce(lambda tx_sum, tx_amt: tx_sum + sum(tx_amt) if len(tx_amt) > 0 else tx_sum, tx_sender, 0)
+    
     tx_recipient = [ [ tx["amount"] for tx in block["transactions"] if tx["recipient"] == participant] for block in block_chain]
-    amount_recieved = 0
-    for tx in tx_recipient:
-        if len(tx) >= 1:
-            amount_recieved += tx[0]
+    amount_recieved = functools.reduce(lambda tx_sum, tx_amt: tx_sum + sum(tx_amt) if len(tx_amt) > 0 else tx_sum, tx_recipient, 0)
+    
     return amount_recieved - amount_sent
 def get_last_blockchain_value():
     if len(block_chain) < 1:
@@ -159,7 +156,7 @@ while True:
     if not verify_blockchain():
         print("Invalid blockchain!")
         break
-    print(get_balance("Fabu"))
+    print("Balance of {}: {:6.2f}".format("Fabrice", get_balance("Fabu")))
         
 
 print("Done!") 
