@@ -1,2 +1,4 @@
 ./blockchain.p
 ./blockchain.txt
+*.txt
+*.p
