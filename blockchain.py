@@ -20,10 +20,30 @@ owner = "Fabu"
 participants ={"Fabu"}
 
 
+def load_data():
+    with open("blockchain.txt", mode="r") as f:
+        file_content = f.readlines()
+        if len(file_content) > 0:
+            global block_chain
+            global open_transactions
+            block_chain = json.loads(file_content[0][:-1])
+            block_chain = [ {"previous_hash": block["previous_hash"], "index": block["index"], "proof": block["proof"], "transactions": [ OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in block["transactions"]]} for block in block_chain]
+            open_transactions = json.loads(file_content[1])
+            open_transactions = [OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in open_transactions]
+
+load_data()
+
+
+def save_data():
+    with open("blockchain.txt", mode="w") as f:
+        f.write(json.dumps(block_chain))
+        f.write("\n")
+        f.write(json.dumps(open_transactions))
+
+
 def valid_proof(transactions, last_hash, proof_number):
     guess = (str(transactions) + str(last_hash) + str(proof_number)).encode()
     hash_guess = hash_string_256(guess)
-    print(hash_guess)
 
     return hash_guess[0:2] == "00"
 
@@ -66,7 +86,7 @@ def add_transaction(recipient, sender=owner, amount=1.0):
         : sender: The sender of the coins
         : recipient: The recipient of the coins
         : amount: The amount of coins sent with the transaction (default = 1.0)
-        : Use OrderedDict to control the oreder of our dictionary to avoid invalid hash coincedance
+        : Use OrderedDict to control the order of our dictionary to avoid invalid hash coincidence
     """
     # transaction = {
     #     "sender": sender,
@@ -79,7 +99,8 @@ def add_transaction(recipient, sender=owner, amount=1.0):
     if verify_transaction(transaction):
         open_transactions.append(transaction)
         participants.add(sender)
-        participants.add(recipient) 
+        participants.add(recipient)
+        save_data()
         return True
     return False
  
@@ -100,10 +121,10 @@ def mine_block():
     #     "amount": MINING_REWARD
     # }
     reward_transaction = OrderedDict([("sender", "MINING"), ("recipient", owner), ("amount", MINING_REWARD)])
-    copied_transactions = open_transactions
+    copied_transactions = open_transactions[:]
     copied_transactions.append(reward_transaction)
     block = {
-        "previous_hash": hashed_block, 
+        "previous_hash": hashed_block,
         "index": len(block_chain),
         "transactions": copied_transactions,
         "proof": proof
@@ -119,7 +140,7 @@ def get_user_choice():
 
 def print_blockchain_elements():
     for block in block_chain:
-            print("Outputting Block: ", block)
+        print("Outputting Block: ", block)
 
 
 def verify_blockchain():
@@ -165,6 +186,7 @@ while True:
     elif user_choice == "2":
        if mine_block():
            open_transactions = []
+           save_data()
     elif user_choice == "3":
         print_blockchain_elements()
     elif user_choice == "4":
@@ -191,6 +213,4 @@ while True:
     print("Balance of {}: {:6.2f}".format("Fabrice", get_balance("Fabu")))
         
 
-print("Done!") 
-
-
+print("Done!")
