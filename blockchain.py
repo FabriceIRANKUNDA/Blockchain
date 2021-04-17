@@ -8,50 +8,54 @@ from hash_util import hash_string_256, hash_block
 
 
 MINING_REWARD = 10
-
-genesis_block = {
-    "previous_hash": "",
-     "index": 0,
-     "transactions": [],
-     "proof": 100
-}
-block_chain = [genesis_block]
-open_transactions = []
 owner = "Fabu"
 participants ={"Fabu"}
 
 
 def load_data():
-    with open("blockchain.txt", mode="r") as f:
-        file_content = f.readlines()
-        # file_content = pickle.loads(f.read())
-        if len(file_content) > 0:
-            global block_chain
-            global open_transactions
-            # block_chain = file_content["chain"]
-            # open_transactions = file_content["ot"]
-            block_chain = json.loads(file_content[0][:-1])
-            block_chain = [ {"previous_hash": block["previous_hash"], "index": block["index"], "proof": block["proof"], "transactions": [ OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in block["transactions"]]} for block in block_chain]
-            open_transactions = json.loads(file_content[1])
-            open_transactions = [OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in open_transactions]
+    try:
+        with open("blockchain.txt", mode="r") as f:
+            file_content = f.readlines()
+            # file_content = pickle.loads(f.read())
+            if len(file_content) > 0:
+                global block_chain
+                global open_transactions
+                # block_chain = file_content["chain"]
+                # open_transactions = file_content["ot"]
+                block_chain = json.loads(file_content[0][:-1])
+                block_chain = [ {"previous_hash": block["previous_hash"], "index": block["index"], "proof": block["proof"], "transactions": [ OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in block["transactions"]]} for block in block_chain]
+                open_transactions = json.loads(file_content[1])
+                open_transactions = [OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in open_transactions]
+    except EOFError:
+        genesis_block = {
+        "previous_hash": "",
+        "index": 0,
+        "transactions": [],
+        "proof": 100
+        }
+        block_chain = [genesis_block]
+        open_transactions = []
 
 load_data()
 
 
 def save_data():
-    with open("blockchain.txt", mode="w") as f:
-        """
-            Both json and pickle can help us but pickle is more flexible because it does change the structure of our OdererdDict
-            Pickle also write our data as bytes not text
-        """
-        f.write(json.dumps(block_chain))
-        f.write("\n")
-        f.write(json.dumps(open_transactions))
-        # saved_data = {
-        #     "chain": block_chain,
-        #     "ot": open_transactions
-        # }
-        # f.write(pickle.dumps(saved_data))
+    try:
+        with open("blockchain.txt", mode="w") as f:
+            """
+                Both json and pickle can help us but pickle is more flexible because it does change the structure of our OdererdDict
+                Pickle also write our data as bytes not text
+            """
+            f.write(json.dumps(block_chain))
+            f.write("\n")
+            f.write(json.dumps(open_transactions))
+            # saved_data = {
+            #     "chain": block_chain,
+            #     "ot": open_transactions
+            # }
+            # f.write(pickle.dumps(saved_data))
+    except:
+        print("Saving failed")
 
 
 def valid_proof(transactions, last_hash, proof_number):
