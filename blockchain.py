@@ -2,14 +2,14 @@ import functools
 import json
 import hashlib
 import pickle
-from collections import OrderedDict
 
 from hash_util import hash_string_256, hash_block
+from block import Block
+from transaction import Transaction
 
 
 MINING_REWARD = 10
 owner = "Fabu"
-participants ={"Fabu"}
 
 
 def load_data():
@@ -23,16 +23,14 @@ def load_data():
                 # block_chain = file_content["chain"]
                 # open_transactions = file_content["ot"]
                 block_chain = json.loads(file_content[0][:-1])
-                block_chain = [ {"previous_hash": block["previous_hash"], "index": block["index"], "proof": block["proof"], "transactions": [ OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in block["transactions"]]} for block in block_chain]
+                # block_chain = [Block(block["index"], block["previous_hash"], [ OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in block["transactions"]], block["proof"], block["timestamp"]) for block in block_chain]
+                block_chain = [ Block(block["index"], block["previous_hash"], [ Transaction(tx["sender"], tx["recipient"], tx["amount"]) for tx in block["transactions"]], block["proof"], block["timestamp"]) for block in block_chain ] 
+                # block_chain = [ {"previous_hash": block["previous_hash"], "index": block["index"], "proof": block["proof"], "transactions": [ OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in block["transactions"]]} for block in block_chain]
                 open_transactions = json.loads(file_content[1])
-                open_transactions = [OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in open_transactions]
-    except EOFError:
-        genesis_block = {
-        "previous_hash": "",
-        "index": 0,
-        "transactions": [],
-        "proof": 100
-        }
+                open_transactions = [Transaction(tx["sender"], tx["recipient"], tx["amount"]) for tx in open_transactions]
+                # open_transactions = [OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in open_transactions]
+    except (FileNotFoundError, IndexError):
+        genesis_block = Block(0, "", [], 100, 0)
         block_chain = [genesis_block]
         open_transactions = []
 
@@ -46,9 +44,11 @@ def save_data():
                 Both json and pickle can help us but pickle is more flexible because it does change the structure of our OdererdDict
                 Pickle also write our data as bytes not text
             """
-            f.write(json.dumps(block_chain))
+            savable_chain = [ block.__dict__ for block in [ Block(block_el.index, block_el.previous_hash, [tx.__dict__ for tx in block_el.transactions], block_el.proof, block_el.timestamp) for block_el in block_chain ]]
+            f.write(json.dumps(savable_chain))
             f.write("\n")
-            f.write(json.dumps(open_transactions))
+            savable_tx = [tx.__dict__ for tx in open_transactions]
+            f.write(json.dumps(savable_tx))
             # saved_data = {
             #     "chain": block_chain,
             #     "ot": open_transactions
@@ -59,7 +59,7 @@ def save_data():
 
 
 def valid_proof(transactions, last_hash, proof_number):
-    guess = (str(transactions) + str(last_hash) + str(proof_number)).encode()
+    guess = (str([tx.to_ordered_dict() for tx in transactions]) + str(last_hash) + str(proof_number)).encode()
     hash_guess = hash_string_256(guess)
 
     return hash_guess[0:2] == "00"
@@ -76,12 +76,12 @@ def proof_of_work():
 
 
 def get_balance(participant):
-    tx_sender = [ [ tx["amount"] for tx in block["transactions"] if tx["sender"] == participant] for block in block_chain]
-    open_txt_sender =  [txt["amount"] for txt in open_transactions if txt["sender"] == participant]
+    tx_sender = [ [ tx.amount for tx in block.transactions if tx.sender == participant] for block in block_chain]
+    open_txt_sender =  [txt.amount for txt in open_transactions if txt.sender == participant]
     tx_sender.append(open_txt_sender)
     amount_sent = functools.reduce(lambda tx_sum, tx_amt: tx_sum + sum(tx_amt) if len(tx_amt) > 0 else tx_sum, tx_sender, 0)
     
-    tx_recipient = [ [ tx["amount"] for tx in block["transactions"] if tx["recipient"] == participant] for block in block_chain]
+    tx_recipient = [ [ tx.amount for tx in block.transactions if tx.recipient == participant] for block in block_chain]
     amount_recieved = functools.reduce(lambda tx_sum, tx_amt: tx_sum + sum(tx_amt) if len(tx_amt) > 0 else tx_sum, tx_recipient, 0)
     
     return amount_recieved - amount_sent
@@ -92,8 +92,8 @@ def get_last_blockchain_value():
 
 
 def verify_transaction(transaction):
-    sender_balance = get_balance(transaction["sender"])
-    return sender_balance > transaction["amount"]
+    sender_balance = get_balance(transaction.sender)
+    return sender_balance > transaction.amount
     
  
 def add_transaction(recipient, sender=owner, amount=1.0):
@@ -111,12 +111,10 @@ def add_transaction(recipient, sender=owner, amount=1.0):
     #     "amount": amount
     # }
 
-    transaction = OrderedDict([("sender", sender), ("recipient", recipient), ("amount", amount)])
+    transaction = Transaction(sender, recipient, amount)
 
     if verify_transaction(transaction):
         open_transactions.append(transaction)
-        participants.add(sender)
-        participants.add(recipient)
         save_data()
         return True
     return False
@@ -137,15 +135,10 @@ def mine_block():
     #     "recipient": owner,
     #     "amount": MINING_REWARD
     # }
-    reward_transaction = OrderedDict([("sender", "MINING"), ("recipient", owner), ("amount", MINING_REWARD)])
+    reward_transaction = Transaction( "MINING", owner, MINING_REWARD)
     copied_transactions = open_transactions[:]
     copied_transactions.append(reward_transaction)
-    block = {
-        "previous_hash": hashed_block,
-        "index": len(block_chain),
-        "transactions": copied_transactions,
-        "proof": proof
-    }
+    block = Block(len(block_chain), hashed_block, copied_transactions, proof)
     block_chain.append(block)
     return True
 
@@ -166,9 +159,9 @@ def verify_blockchain():
     for index, block in enumerate(block_chain):
         if index == 0:
             continue
-        if block["previous_hash"] != hash_block(block_chain[index - 1]):
+        if block.previous_hash != hash_block(block_chain[index - 1]):
             return False
-        if not valid_proof(block["transactions"][:-1], block["previous_hash"], block["proof"]):
+        if not valid_proof(block.transactions[:-1], block.previous_hash, block.proof):
             print("Proof of work is invalid")
             return False
     return True
@@ -177,18 +170,12 @@ def verify_blockchain():
 def verify_transactions():
     return all([verify_transaction(tx) for tx in open_transactions])
 
-def list_comprehension(*numbers):
-    new_list = [number * 2 for number in numbers]
-    return new_list
-
 while True:
     print("Make a choice")
     print("1: Add new transaction value")
     print("2: Mine a new block")
     print("3: Outputting the blockchain blocks")
-    print("4: Output participants")
-    print("5: Check transactions validity")
-    print("h: Manipulate the chain")
+    print("4: Check transactions validity")
     print("Q ----> Quit")
 
     user_choice = get_user_choice()
@@ -207,19 +194,10 @@ while True:
     elif user_choice == "3":
         print_blockchain_elements()
     elif user_choice == "4":
-        print(f"Participants: {participants}")
-    elif user_choice == "5":
         if verify_transactions():
             print("All transactions are valid")
         else:
             print("There are invalid transanction")
-    elif user_choice.lower() == 'h':
-        if len(block_chain) >= 1:
-            block_chain[0] = {
-                "previous_hash": "",
-                "index": 0,
-                "transactions": [{"sender": "Papy", "recipient": "Max", "amount": 100.0}]
-            }
     elif user_choice.lower() == 'q':
         break
     else:
