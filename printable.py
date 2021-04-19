@@ -1,3 +1,3 @@
 class Printable:
-    def __repr__(this):
-        return str(this.__dict__)
+    def __repr__(self):
+        return str(self.__dict__)
