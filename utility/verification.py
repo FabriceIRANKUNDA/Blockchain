@@ -1,5 +1,6 @@
-
-from hash_util import hash_string_256, hash_block
+"""Provides verification helper methods."""
+f
+rom utility.hash_util import hash_string_256, hash_block
 
 class Verification:
     @staticmethod
