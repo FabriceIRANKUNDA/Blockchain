@@ -81,6 +81,8 @@ class Blockchain:
         return proof_number
 
     def get_balance(self):
+        if self.hosting_node == None:
+            return None
         participant = self.hosting_node
         tx_sender = [ [ tx.amount for tx in block.transactions if tx.sender == participant] for block in self.__chain]
         open_txt_sender =  [txt.amount for txt in self.__open_transactions if txt.sender == participant]
