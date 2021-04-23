@@ -154,5 +154,48 @@ def get_chain():
         dict_block["transactions"] = [tx.__dict__ for tx in dict_block["transactions"]]
     return jsonify(dict_chain), 200
 
+@app.route("/node", methods=["POST"])
+def add_node():
+    values = request.get_json()
+    if not values:
+        response = {
+            "message": "No data attached"
+        }
+        return jsonify(response), 400
+    if "node" not in values:
+        response = {
+            "message": "No node attached"
+        }
+        return jsonify(response), 400
+    node = values.get("node")
+    blockchain.add_peer_node(node)
+    response = {
+        "message": "Node added successfully.",
+        "all_nodes": blockchain.get_peer_nodes()
+    }
+    return jsonify(response), 201
+
+@app.route("/node/<node_url>", methods=["DELETE"])
+def remove_node(node_url):
+    if node_url == "" or node_url == None:
+        response = {
+            "message": "No node_url attached"
+        }
+        return jsonify(response), 400
+    blockchain.remove_peer_node(node_url)
+    response = {
+        "message": "Node removed",
+        "all_nodes": blockchain.get_peer_nodes()
+    }
+
+    return jsonify(response), 200
+
+@app.route("/node", methods=["GET"])
+def get_all_nodes():
+    return jsonify({
+        "message": "Nodes fetched successfully",
+        "all_nodes": blockchain.get_peer_nodes()
+    }), 200
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

@@ -17,6 +17,7 @@ class Blockchain:
         self.chain = [genesis_block]
         self.__open_transactions = []
         self.hosting_node = hosting_node_id
+        self.__peer_nodes = set()
         self.load_data()
 
     @property
@@ -44,9 +45,11 @@ class Blockchain:
                     # block_chain = [Block(block["index"], block["previous_hash"], [ OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in block["transactions"]], block["proof"], block["timestamp"]) for block in block_chain]
                     self.chain = [ Block(block["index"], block["previous_hash"], [ Transaction(tx["sender"], tx["recipient"], tx["signature"], tx["amount"]) for tx in block["transactions"]], block["proof"], block["timestamp"]) for block in self.__chain ] 
                     # block_chain = [ {"previous_hash": block["previous_hash"], "index": block["index"], "proof": block["proof"], "transactions": [ OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in block["transactions"]]} for block in block_chain]
-                    self.__open_transactions = json.loads(file_content[1])
+                    self.__open_transactions = json.loads(file_content[1][:-1])
                     self.__open_transactions = [Transaction(tx["sender"], tx["recipient"], tx["signature"], tx["amount"]) for tx in self.__open_transactions]
                     # open_transactions = [OrderedDict([("sender", tx["sender"]), ("recipient", tx["recipient"]), ("amount", tx["amount"])]) for tx in open_transactions]
+                    peer_nodes = json.loads(file_content[2])
+                    self.__peer_nodes = set(peer_nodes)
         except (FileNotFoundError, IndexError):
             print("Handled Exception..")
 
@@ -62,6 +65,8 @@ class Blockchain:
                 f.write("\n")
                 savable_tx = [tx.__dict__ for tx in self.__open_transactions]
                 f.write(json.dumps(savable_tx))
+                f.write("\n")
+                f.write(json.dumps(list(self.__peer_nodes)))
                 # saved_data = {
                 #     "chain": block_chain,
                 #     "ot": open_transactions
@@ -147,3 +152,19 @@ class Blockchain:
         self.__open_transactions = []
         self.save_data()
         return block
+    
+    def add_peer_node(self, node):
+        """Adds a new node to the peer node set
+
+        Arguments:
+            :node: The node URL which should be added.
+        """
+        self.__peer_nodes.add(node)
+        self.save_data()
+    
+    def remove_peer_node(self, node):
+        self.__peer_nodes.discard(node)
+        self.save_data()
+
+    def get_peer_nodes(self):
+        return list(self.__peer_nodes)
