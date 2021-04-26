@@ -8,9 +8,9 @@ from utility.verification import Verification
 class Node:
     def __init__(self):
         # self.wallet.public_key = str(uuid4())
-        self.wallet = Wallet()
+        self.wallet = Wallet("")
         self.wallet.create_keys() 
-        self.blockchain = Blockchain(self.wallet.public_key) 
+        self.blockchain = Blockchain(self.wallet.public_key, "")
     def get_transaction_value(self):
         txt_recipient = input("Enter the recipient of the transaction: ")
         tx_amount = float(input("Please enter your transaction amount: "))
@@ -60,10 +60,10 @@ class Node:
                     print("There are invalid transanction")
             elif user_choice == "5":
                   self.wallet.create_keys() 
-                  self.blockchain = Blockchain(self.wallet.public_key) 
+                  self.blockchain = Blockchain(self.wallet.public_key, "") 
             elif user_choice == "6":
                 self.wallet.load_keys()
-                self.blockchain = Blockchain(self.wallet.public_key)
+                self.blockchain = Blockchain(self.wallet.public_key, "")
             elif user_choice == "7":
                 self.wallet.save_keys()
             elif user_choice.lower() == 'q':

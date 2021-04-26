@@ -1,6 +1,7 @@
 import functools
 import json
 import hashlib
+import requests
 import pickle
 
 from utility.hash_util import hash_block
@@ -12,11 +13,12 @@ from wallet import Wallet
 MINING_REWARD = 10
 
 class Blockchain:
-    def __init__(self, hosting_node_id):
+    def __init__(self, public_key, node_id):
         genesis_block = Block(0, "", [], 100, 0)
         self.chain = [genesis_block]
         self.__open_transactions = []
-        self.hosting_node = hosting_node_id
+        self.public_key = public_key
+        self.node_id = node_id
         self.__peer_nodes = set()
         self.load_data()
 
@@ -33,7 +35,7 @@ class Blockchain:
 
     def load_data(self):
         try:
-            with open("blockchain.txt", mode="r") as f:
+            with open("blockchain-{}.txt".format(self.node_id), mode="r") as f:
                 file_content = f.readlines()
                 # file_content = pickle.loads(f.read())
                 if len(file_content) > 0:
@@ -55,7 +57,7 @@ class Blockchain:
 
     def save_data(self):
         try:
-            with open("blockchain.txt", mode="w") as f:
+            with open("blockchain-{}.txt".format(self.node_id), mode="w") as f:
                 """
                     Both json and pickle can help us but pickle is more flexible because it does change the structure of our OdererdDict
                     Pickle also write our data as bytes not text
@@ -85,10 +87,13 @@ class Blockchain:
             proof_number += 1
         return proof_number
 
-    def get_balance(self):
-        if self.hosting_node == None:
-            return None
-        participant = self.hosting_node
+    def get_balance(self, sender=None):
+        if sender == None:
+            if self.public_key == None:
+                return None
+            participant = self.public_key
+        else:
+            participant = sender
         tx_sender = [ [ tx.amount for tx in block.transactions if tx.sender == participant] for block in self.__chain]
         open_txt_sender =  [txt.amount for txt in self.__open_transactions if txt.sender == participant]
         tx_sender.append(open_txt_sender)
@@ -104,7 +109,7 @@ class Blockchain:
             return None
         return self.__chain[-1]
     
-    def add_transaction(self, recipient, sender, signature, amount=1.0):
+    def add_transaction(self, recipient, sender, signature, amount=1.0, is_recieving=False):
         """ Append a new tranction
 
         Arguments:
@@ -119,18 +124,49 @@ class Blockchain:
         #     "amount": amount
         # }
 
-        if self.hosting_node == None:
+        if self.public_key == None:
             return False
 
         transaction = Transaction(sender, recipient, signature, amount)
-        if Verification.verify_transaction(transaction, self.get_balance):
+        ver = Verification.verify_transaction(transaction, self.get_balance)
+        print("Verification: ", ver)
+        if ver:
             self.__open_transactions.append(transaction)
             self.save_data()
+            if not is_recieving:
+                for node in self.__peer_nodes:
+                    try:
+                        url = f"http://{node}/broadcast-transaction"
+                        response = requests.post(url, json={"sender": sender, "recipient": recipient, "amount": amount, "signature": signature})
+                        if response.status_code == 400 or response.status_code == 500:
+                            print("Transaction declined, needs resolving")
+                            return False
+                    except requests.exceptions.ConnectionError:
+                        continue
             return True
         return False
+    
+    def add_block(self, block):
+        transactions = [Transaction(tx["sender"], tx["recipient"], tx["signature"], tx["amount"]) for tx in block["transactions"]]
+        proof_is_valid = Verification.valid_proof(transactions[:-1], block["previous_hash"], block["proof"])
+        hashes_match = hash_block(self.chain[-1]) == block["previous_hash"]
+        if not proof_is_valid or not hashes_match:
+            return False
+        converted_block = Block(block["index"], block["previous_hash"], transactions, block["proof"], block["timestamp"])
+        self.__chain.append(converted_block)
+        stored_transactions = self.__open_transactions[:]
+        for incoming_tx in block["transactions"]:
+            for opentx in stored_transactions:
+                if opentx.sender == incoming_tx["sender"] and opentx.recipient == incoming_tx["recipient"] and opentx.signature ==incoming_tx["signature"] and opentx.amount == incoming_tx["amount"]:
+                    try:
+                        self.__open_transactions.remove(opentx)
+                    except ValueError:
+                        print("Item was already removed.")
+        self.save_data()
+        return True
 
     def mine_block(self):
-        if self.hosting_node == None:
+        if self.public_key == None:
             return None
         last_block = self.__chain[-1]
         hashed_block =  hash_block(last_block)
@@ -140,7 +176,7 @@ class Blockchain:
         #     "recipient": owner,
         #     "amount": MINING_REWARD
         # }
-        reward_transaction = Transaction( "MINING", self.hosting_node, "", MINING_REWARD)
+        reward_transaction = Transaction( "MINING", self.public_key, "", MINING_REWARD)
         copied_transactions = self.__open_transactions[:]
         for tx in copied_transactions:
             if not Wallet.verify_transaction(tx):
@@ -151,6 +187,16 @@ class Blockchain:
         self.__chain.append(block)
         self.__open_transactions = []
         self.save_data()
+        for node in self.__peer_nodes:
+            url = f"http://{node}/broadcast-block"
+            dict_block = block.__dict__.copy()
+            dict_block["transactions"] = [tx.__dict__ for tx in dict_block["transactions"]]
+            try:
+                response = requests.post(url, json={"block": dict_block})
+                if response.status_code == 400 or response.status_code == 500:
+                    print("Block declined, needs resolving")
+            except requests.exceptions.ConnectionError:
+                continue
         return block
     
     def add_peer_node(self, node):
